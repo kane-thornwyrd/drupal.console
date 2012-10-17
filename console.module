@@ -1,0 +1,133 @@
+<?php
+
+/**
+ * Implements hook_menu();
+ */
+function console_menu() {
+  $items = array();
+
+  $items['admin/console'] = array(
+    'title'          => 'Console',
+    'page callback'  => 'drupal_get_form',
+    'page arguments' => array('console_form'),
+    'access arguments' => array('use_console'),
+  );
+
+  return $items;
+
+}
+define('CONSOLE_VARIABLE_NAME', 'console_historic');
+
+function _console_historic($add = NULL, $input = FALSE, $reset = FALSE) {
+  static $historic;
+
+  if (!isset($historic)) {
+    $historic = variable_get(CONSOLE_VARIABLE_NAME, '');
+  }
+
+  if ($reset) {
+    $historic = $add = '';
+    $input = TRUE;
+  }
+
+  if ($input) {
+    $historic = drupal_strlen($historic) > 1000
+    ? ''
+    : $historic;
+    $historic .= "\n" . $add;
+    variable_set(CONSOLE_VARIABLE_NAME, $historic);
+  }
+
+  return $historic;
+
+}
+
+/**
+ * Implements hook_permission();
+ */
+function console_permission() {
+  $items = array();
+
+  $items['use_console'] = array(
+    'title'           => t('Use the Console'),
+    'restrict access' => TRUE,
+  );
+
+  return $items;
+
+}
+
+function console_form($form, &$form_state) {
+  $historic = _console_historic();
+
+  $form = array();
+
+  $form['output'] = array(
+    '#title'       => t('Output'),
+    '#type'        => 'textarea',
+    '#cols'        => 130,
+    '#rows'        => 10,
+    '#value'       => $historic,
+  );
+  $form['clear'] = array(
+    '#type'          => 'submit',
+    '#value'         => t('Clear'),
+  );
+  $form['console'] = array(
+    '#title'         => t('Input'),
+    '#type'          => 'textarea',
+    '#cols'          => 130,
+    '#rows'          => 25,
+  );
+  $form['execute'] = array(
+    '#type'  => 'submit',
+    '#value' => t('Execute'),
+  );
+
+
+
+  return $form;
+
+}
+
+function console_form_submit($form, &$form_state) {
+
+  if ($form_state['clicked_button']['#value'] == t('Clear')) {
+    _console_historic(NULL, NULL, TRUE);
+    return NULL;
+  }
+
+  $commands = $form_state['values']['console'];
+  ob_start();
+  eval($commands);
+  $result = ob_get_contents();
+  ob_end_clean();
+
+  $console_output = trim(implode("\n",
+  array_filter(array_map('trim', explode("\n", $commands)))));
+  $console_output =
+  "\n"
+  . str_repeat("-", 80)
+  . "\n"
+  . str_repeat(" ", 37)
+  . 'INPUT'
+  . "\n"
+  . str_repeat("-", 80)
+  . "\n"
+  . preg_replace('# +#', " ", $console_output);
+
+  $console_output .=
+  "\n"
+  . str_repeat("-", 80)
+  . "\n"
+  . str_repeat(" ", 37)
+  . 'OUTPUT'
+  . "\n"
+  . str_repeat("-", 80)
+  . "\n"
+  ;
+  $console_output .= strlen($result) ? print_r($result, TRUE): 'VOID';
+
+  _console_historic($console_output, TRUE);
+
+}

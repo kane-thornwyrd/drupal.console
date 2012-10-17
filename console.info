@@ -1,0 +1,4 @@
+name = Console
+description = An nearly interactive console inside your Drupal
+core = 7.x
+configure = admin/console
